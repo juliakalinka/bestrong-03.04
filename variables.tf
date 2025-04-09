@@ -40,3 +40,9 @@ variable "sql_admin_password" {
   description = "SQL admin password"
   sensitive   = true
 }
+
+variable "app_service_plan_sku" {
+  description = "The SKU for the App Service Plan"
+  type        = string
+  default     = "P1v2"
+}
