@@ -1,0 +1,19 @@
+# Terraform
+*.tfvars
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+
+# Environment Variables
+.env
+.env.local
+
+# Editor-specific
+.vscode/
+.idea/
+*.swp
+
+# Logs and Temp Files
+*.log
+*.tmp
