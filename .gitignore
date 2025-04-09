@@ -17,3 +17,5 @@ terraform.tfstate.backup
 # Logs and Temp Files
 *.log
 *.tmp
+
+.vs
