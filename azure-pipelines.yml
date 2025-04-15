@@ -150,7 +150,6 @@ stages:
                   -var="subscription_id=$TF_VAR_subscription_id" \
                   -var="sql_admin_username=$TF_VAR_sql_admin_username" \
                   -var="sql_admin_password=$TF_VAR_sql_admin_password" \
-                  -var="tags=$(TAGS)" \
                   -out=tfplan
               workingDirectory: '$(workingDirectory)'
 
@@ -218,6 +217,5 @@ stages:
                   -var="tenant_id=$TF_VAR_tenant_id" \
                   -var="subscription_id=$TF_VAR_subscription_id" \
                   -var="sql_admin_username=$TF_VAR_sql_admin_username" \
-                  -var="sql_admin_password=$TF_VAR_sql_admin_password" \
-                  -var="tags=$(TAGS)"
+                  -var="sql_admin_password=$TF_VAR_sql_admin_password"
               workingDirectory: '$(workingDirectory)' 
