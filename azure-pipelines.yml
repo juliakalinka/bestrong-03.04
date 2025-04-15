@@ -59,6 +59,7 @@ stages:
                 export ARM_CLIENT_SECRET=$TF_VAR_client_secret
                 export ARM_TENANT_ID=$TF_VAR_tenant_id
                 export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
+                export TF_LOG=DEBUG
                 
                 if [ -z "$ARM_CLIENT_ID" ] || [ -z "$ARM_CLIENT_SECRET" ] || [ -z "$ARM_TENANT_ID" ] || [ -z "$ARM_SUBSCRIPTION_ID" ]; then
                   echo "Error: Missing required environment variables"
@@ -125,6 +126,7 @@ stages:
                 export ARM_CLIENT_SECRET=$TF_VAR_client_secret
                 export ARM_TENANT_ID=$TF_VAR_tenant_id
                 export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
+                export TF_LOG=DEBUG
           
           - task: AzureCLI@2
             displayName: 'Terraform Init'
@@ -193,6 +195,7 @@ stages:
                 export ARM_CLIENT_SECRET=$TF_VAR_client_secret
                 export ARM_TENANT_ID=$TF_VAR_tenant_id
                 export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
+                export TF_LOG=DEBUG
           
           - task: AzureCLI@2
             displayName: 'Terraform Init'
