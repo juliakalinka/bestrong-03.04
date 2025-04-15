@@ -27,6 +27,11 @@ variable "subscription_id" {
 variable "tags" {
   description = "Tags to be applied to all resources"
   type        = map(string)
+  default = {
+    environment = "staging"
+    owner       = "bestrong"
+    project     = "terraform"
+  }
 }
 
 variable "sql_admin_username" {
