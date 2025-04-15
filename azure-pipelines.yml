@@ -12,7 +12,8 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  - group: terraform-variables
+  - name: ARM_SERVICE_CONNECTION
+    value: 'bestrong-azure-connection'
   - name: TF_VERSION
     value: '1.5.7'
   - name: workingDirectory
