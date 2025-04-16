@@ -116,11 +116,61 @@ stages:
                 
                 terraform plan -out=tfplan
               workingDirectory: '$(workingDirectory)'
+
+      - job: TriggerMainPipeline
+        displayName: 'Trigger Main Pipeline on Merge'
+        dependsOn: ValidateTerraform
+        condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main'))
+        steps:
+          - task: PowerShell@2
+            displayName: 'Wait for PR to be merged'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Write-Host "This job executes when a PR targeting main branch is completed. It will trigger the main branch pipeline."
+                Write-Host "PR ID: $(System.PullRequest.PullRequestId)"
+                Write-Host "PR Number: $(System.PullRequest.PullRequestNumber)"
+                Write-Host "Target Branch: $(System.PullRequest.TargetBranch)"
+                
+                # Wait a bit to ensure PR is merged
+                Start-Sleep -Seconds 30
+          
+          - task: PowerShell@2
+            displayName: 'Trigger Main Branch Pipeline'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $token = "$(System.AccessToken)"
+                $orgUrl = "$(System.CollectionUri)"
+                $projectName = "$(System.TeamProject)"
+                $pipelineId = "$(System.DefinitionId)"
+                
+                $headers = @{
+                  Authorization = "Bearer $token"
+                  "Content-Type" = "application/json"
+                }
+                
+                $body = @{
+                  resources = @{
+                    repositories = @{
+                      self = @{
+                        refName = "refs/heads/main"
+                      }
+                    }
+                  }
+                } | ConvertTo-Json -Depth 10
+                
+                $uri = "$orgUrl$projectName/_apis/pipelines/$pipelineId/runs?api-version=6.0"
+                
+                Write-Host "Triggering pipeline on main branch..."
+                Invoke-RestMethod -Uri $uri -Method Post -Headers $headers -Body $body
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
   
   # Main Branch Stage - runs on main branch for CI/CD
   - stage: CI_CD
     displayName: 'CI/CD Pipeline'
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), and(eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main'))))
     jobs:
       - job: DeployTerraform
         displayName: 'Deploy Infrastructure'
