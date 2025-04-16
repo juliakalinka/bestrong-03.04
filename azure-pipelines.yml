@@ -120,7 +120,7 @@ stages:
   # Main Branch Stage - runs on main branch for CI/CD
   - stage: CI_CD
     displayName: 'CI/CD Pipeline'
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.Reason'], 'PullRequest')))
     jobs:
       - job: DeployTerraform
         displayName: 'Deploy Infrastructure'
