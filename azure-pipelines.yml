@@ -31,6 +31,7 @@ variables:
     value: $[and(eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranchName'], 'main'))]
 
 stages:
+  # PR Stage - runs on Pull Requests
   - stage: PR_Validation
     displayName: 'PR Validation'
     condition: eq(variables['isPRToMain'], 'true')
@@ -120,9 +121,10 @@ stages:
                 terraform plan -out=tfplan
               workingDirectory: '$(workingDirectory)'
   
+  # Main Branch Stage - runs on main branch for CI/CD
   - stage: CI_CD
     displayName: 'CI/CD Pipeline'
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    condition: or(eq(variables['isDirectMainBranch'], 'true'), and(succeeded(), eq(variables['Build.Reason'], 'Manual')))
     jobs:
       - job: DeployTerraform
         displayName: 'Deploy Infrastructure'
@@ -173,6 +175,23 @@ stages:
                   -backend-config="storage_account_name=$(TF_STATE_SA)" \
                   -backend-config="container_name=$(TF_STATE_CONTAINER)" \
                   -backend-config="resource_group_name=$(TF_STATE_RG)"
+              workingDirectory: '$(workingDirectory)'
+          
+          - task: AzureCLI@2
+            displayName: 'Terraform Validate'
+            inputs:
+              azureSubscription: 'bestrong-azure-connection'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                set -a
+                source $(envFile.secureFilePath)
+                set +a
+                
+                export TF_VAR_subscription_id=$(echo "$TF_VAR_subscription_id" | tr -d '\r')
+                echo "Using subscription ID: $TF_VAR_subscription_id"
+                
+                terraform validate
               workingDirectory: '$(workingDirectory)'
           
           - task: AzureCLI@2
