@@ -1,5 +1,5 @@
 # bestrong-03.04
-Uitware Internship | Homework 03.03.25 | Bestrong UPDATE
+Uitware Internship | Homework 03.03.25 | Bestrong UPDATE for PR
 
 Setup Terraform infrastructure on Azure, including:
         1 App Service Plan
