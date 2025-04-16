@@ -1,5 +1,5 @@
 # bestrong-03.04
-Uitware Internship | Homework 03.03.25
+Uitware Internship | Homework 03.03.25 | BeStrong
 
 Setup Terraform infrastructure on Azure, including:
         1 App Service Plan
