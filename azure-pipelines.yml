@@ -2,19 +2,11 @@ trigger:
   branches:
     include:
       - main
-  paths:
-    exclude:
-      - README.md
-      - .gitignore
 
 pr:
   branches:
     include:
       - main
-  paths:
-    exclude:
-      - README.md
-      - .gitignore
 
 resources:
   repositories:
