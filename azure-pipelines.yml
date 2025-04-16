@@ -25,14 +25,18 @@ variables:
   - name: workingDirectory
     value: '$(System.DefaultWorkingDirectory)'
   - group: terraform-variables
+  - name: isDirectMainBranch
+    value: $[eq(variables['Build.SourceBranch'], 'refs/heads/main')]
+  - name: isPRToMain
+    value: $[and(eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranchName'], 'main'))]
 
 stages:
   - stage: PR_Validation
-    displayName: 'Validate Terraform Configuration'
-    condition: eq(variables['Build.Reason'], 'PullRequest')
+    displayName: 'PR Validation'
+    condition: eq(variables['isPRToMain'], 'true')
     jobs:
       - job: ValidateTerraform
-        displayName: 'Validate and Plan'
+        displayName: 'Validate Terraform Configuration'
         steps:
           - checkout: self
           
@@ -117,11 +121,11 @@ stages:
               workingDirectory: '$(workingDirectory)'
   
   - stage: CI_CD
-    displayName: 'Deploy Infrastructure'
+    displayName: 'CI/CD Pipeline'
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     jobs:
       - job: DeployTerraform
-        displayName: 'Deploy to Azure'
+        displayName: 'Deploy Infrastructure'
         steps:
           - checkout: self
           
