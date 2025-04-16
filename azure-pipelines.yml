@@ -45,10 +45,16 @@ stages:
         steps:
           - checkout: self
           
-          - task: TerraformInstaller@0
+          - task: Bash@3
             displayName: 'Install Terraform $(terraformVersion)'
             inputs:
-              terraformVersion: '$(terraformVersion)'
+              targetType: 'inline'
+              script: |
+                # Download and install Terraform
+                wget -q https://releases.hashicorp.com/terraform/$(terraformVersion)/terraform_$(terraformVersion)_linux_amd64.zip
+                unzip -q terraform_$(terraformVersion)_linux_amd64.zip
+                sudo mv terraform /usr/local/bin/
+                terraform version
           
           - task: DownloadSecureFile@1
             name: envFile
@@ -117,10 +123,16 @@ stages:
         steps:
           - checkout: self
           
-          - task: TerraformInstaller@0
+          - task: Bash@3
             displayName: 'Install Terraform $(terraformVersion)'
             inputs:
-              terraformVersion: '$(terraformVersion)'
+              targetType: 'inline'
+              script: |
+                # Download and install Terraform
+                wget -q https://releases.hashicorp.com/terraform/$(terraformVersion)/terraform_$(terraformVersion)_linux_amd64.zip
+                unzip -q terraform_$(terraformVersion)_linux_amd64.zip
+                sudo mv terraform /usr/local/bin/
+                terraform version
           
           - task: DownloadSecureFile@1
             name: envFile
