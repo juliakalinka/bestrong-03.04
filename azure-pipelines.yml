@@ -2,213 +2,195 @@ trigger:
   branches:
     include:
       - main
+  paths:
+    exclude:
+      - README.md
+      - .gitignore
 
 pr:
   branches:
     include:
       - main
+  paths:
+    exclude:
+      - README.md
+      - .gitignore
+
+resources:
+  repositories:
+    - repository: self
+      type: github
+      connection: github-bestrong-connection
+      name: $(Build.Repository.Name)
+      ref: $(Build.SourceBranch)
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  - name: ARM_SERVICE_CONNECTION
-    value: 'bestrong-azure-connection'
-  - name: TF_VERSION
+  - name: terraformVersion
     value: '1.5.7'
   - name: workingDirectory
-    value: '$(System.DefaultWorkingDirectory)'
-  - name: terraformWorkingDirectory
     value: '$(System.DefaultWorkingDirectory)'
   - group: terraform-variables
 
 stages:
-  - stage: Validate
-    displayName: 'Validate Terraform Configuration'
+  # PR Stage - runs on Pull Requests
+  - stage: PR_Validation
+    displayName: 'PR Validation'
+    condition: eq(variables['Build.Reason'], 'PullRequest')
     jobs:
-      - job: Validate
-        displayName: 'Run Terraform Validate'
+      - job: ValidateTerraform
+        displayName: 'Validate Terraform Configuration'
         steps:
           - checkout: self
           
+          - task: TerraformInstaller@0
+            displayName: 'Install Terraform $(terraformVersion)'
+            inputs:
+              terraformVersion: '$(terraformVersion)'
+          
           - task: DownloadSecureFile@1
             name: envFile
+            displayName: 'Download Terraform Environment File'
             inputs:
               secureFile: 'terraform.env'
           
           - task: AzureCLI@2
-            displayName: 'Install Terraform'
+            displayName: 'Terraform Init'
             inputs:
-              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
+              azureSubscription: 'bestrong-azure-connection'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                wget https://releases.hashicorp.com/terraform/$(TF_VERSION)/terraform_$(TF_VERSION)_linux_amd64.zip
-                unzip terraform_$(TF_VERSION)_linux_amd64.zip
-                sudo mv terraform /usr/local/bin/
-                terraform version
-          
-          - task: AzureCLI@2
-            displayName: 'Setup Environment Variables'
-            inputs:
-              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
+                # Load environment variables from .env file
                 set -a
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Get authorization data from .env file
-                export ARM_CLIENT_ID=$TF_VAR_client_id
-                export ARM_CLIENT_SECRET=$TF_VAR_client_secret
-                export ARM_TENANT_ID=$TF_VAR_tenant_id
-                export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
-                
-                # Check for required variables
-                if [ -z "$ARM_CLIENT_ID" ] || [ -z "$ARM_CLIENT_SECRET" ] || [ -z "$ARM_TENANT_ID" ] || [ -z "$ARM_SUBSCRIPTION_ID" ]; then
-                  echo "Error: Missing required environment variables in .env file"
-                  exit 1
-                fi
-                
-                # Check for required variables in Azure DevOps
-                if [ -z "$(TF_STATE_SA)" ] || [ -z "$(TF_STATE_CONTAINER)" ] || [ -z "$(TF_STATE_RG)" ]; then
-                  echo "Error: Missing required Azure DevOps variables (TF_STATE_SA, TF_STATE_CONTAINER, TF_STATE_RG)"
-                  exit 1
-                fi
-                
-                export TF_LOG=DEBUG
-          
-          - task: AzureCLI@2
-            displayName: 'Terraform Init'
-            inputs:
-              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                terraform init -backend-config="storage_account_name=$(TF_STATE_SA)" -backend-config="container_name=$(TF_STATE_CONTAINER)" -backend-config="resource_group_name=$(TF_STATE_RG)"
+                # Initialize Terraform with backend configuration
+                terraform init \
+                  -backend-config="storage_account_name=$(TF_STATE_SA)" \
+                  -backend-config="container_name=$(TF_STATE_CONTAINER)" \
+                  -backend-config="resource_group_name=$(TF_STATE_RG)"
               workingDirectory: '$(workingDirectory)'
           
           - task: AzureCLI@2
             displayName: 'Terraform Validate'
             inputs:
-              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
+              azureSubscription: 'bestrong-azure-connection'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
+                # Load environment variables from .env file
+                set -a
+                source $(envFile.secureFilePath)
+                set +a
+                
+                # Validate Terraform configuration
                 terraform validate
               workingDirectory: '$(workingDirectory)'
-
-  - stage: Plan
-    displayName: 'Terraform Plan'
-    dependsOn: Validate
-    condition: succeeded()
-    jobs:
-      - job: PlanTerraform
-        displayName: 'Create Terraform Plan'
-        steps:
-          - task: DownloadSecureFile@1
-            name: envFile
-            displayName: 'Download env file'
-            inputs:
-              secureFile: 'terraform.env'
           
-          - task: Bash@3
-            displayName: 'Terraform Init'
-            inputs:
-              targetType: 'inline'
-              workingDirectory: '$(terraformWorkingDirectory)'
-              script: |
-                set -a
-                source $(envFile.secureFilePath)
-                set +a
-                
-                # Get authorization data from .env file
-                export ARM_CLIENT_ID=$TF_VAR_client_id
-                export ARM_CLIENT_SECRET=$TF_VAR_client_secret
-                export ARM_TENANT_ID=$TF_VAR_tenant_id
-                export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
-                
-                terraform init -backend-config="storage_account_name=$(TF_STATE_SA)" -backend-config="container_name=$(TF_STATE_CONTAINER)" -backend-config="resource_group_name=$(TF_STATE_RG)"
-          
-          - task: Bash@3
+          - task: AzureCLI@2
             displayName: 'Terraform Plan'
             inputs:
-              targetType: 'inline'
-              workingDirectory: '$(terraformWorkingDirectory)'
-              script: |
+              azureSubscription: 'bestrong-azure-connection'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Load environment variables from .env file
                 set -a
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Get authorization data from .env file
-                export ARM_CLIENT_ID=$TF_VAR_client_id
-                export ARM_CLIENT_SECRET=$TF_VAR_client_secret
-                export ARM_TENANT_ID=$TF_VAR_tenant_id
-                export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
-                
+                # Run Terraform plan
                 terraform plan -out=tfplan
-
-          - task: PublishPipelineArtifact@1
-            displayName: 'Publish Terraform Plan'
-            inputs:
-              targetPath: '$(terraformWorkingDirectory)/tfplan'
-              artifact: 'tfplan'
-              publishLocation: 'pipeline'
-
-  - stage: Apply
-    displayName: 'Terraform Apply'
-    dependsOn: Plan
-    condition: succeeded()
+              workingDirectory: '$(workingDirectory)'
+  
+  # Main Branch Stage - runs on main branch for CI/CD
+  - stage: CI_CD
+    displayName: 'CI/CD Pipeline'
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     jobs:
-      - job: ApplyTerraform
-        displayName: 'Apply Terraform Changes'
+      - job: DeployTerraform
+        displayName: 'Deploy Infrastructure'
         steps:
-          - task: DownloadPipelineArtifact@2
-            displayName: 'Download Terraform Plan'
+          - checkout: self
+          
+          - task: TerraformInstaller@0
+            displayName: 'Install Terraform $(terraformVersion)'
             inputs:
-              artifactName: 'tfplan'
-              downloadPath: '$(System.ArtifactsDirectory)'
+              terraformVersion: '$(terraformVersion)'
           
           - task: DownloadSecureFile@1
             name: envFile
-            displayName: 'Download env file'
+            displayName: 'Download Terraform Environment File'
             inputs:
               secureFile: 'terraform.env'
           
-          - task: Bash@3
+          - task: AzureCLI@2
             displayName: 'Terraform Init'
             inputs:
-              targetType: 'inline'
-              workingDirectory: '$(terraformWorkingDirectory)'
-              script: |
+              azureSubscription: 'bestrong-azure-connection'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Load environment variables from .env file
                 set -a
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Get authorization data from .env file
-                export ARM_CLIENT_ID=$TF_VAR_client_id
-                export ARM_CLIENT_SECRET=$TF_VAR_client_secret
-                export ARM_TENANT_ID=$TF_VAR_tenant_id
-                export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
-                
-                terraform init -backend-config="storage_account_name=$(TF_STATE_SA)" -backend-config="container_name=$(TF_STATE_CONTAINER)" -backend-config="resource_group_name=$(TF_STATE_RG)"
+                # Initialize Terraform with backend configuration
+                terraform init \
+                  -backend-config="storage_account_name=$(TF_STATE_SA)" \
+                  -backend-config="container_name=$(TF_STATE_CONTAINER)" \
+                  -backend-config="resource_group_name=$(TF_STATE_RG)"
+              workingDirectory: '$(workingDirectory)'
           
-          - task: Bash@3
+          - task: AzureCLI@2
+            displayName: 'Terraform Validate'
+            inputs:
+              azureSubscription: 'bestrong-azure-connection'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Load environment variables from .env file
+                set -a
+                source $(envFile.secureFilePath)
+                set +a
+                
+                # Validate Terraform configuration
+                terraform validate
+              workingDirectory: '$(workingDirectory)'
+          
+          - task: AzureCLI@2
+            displayName: 'Terraform Plan'
+            inputs:
+              azureSubscription: 'bestrong-azure-connection'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Load environment variables from .env file
+                set -a
+                source $(envFile.secureFilePath)
+                set +a
+                
+                # Run Terraform plan
+                terraform plan -out=tfplan
+              workingDirectory: '$(workingDirectory)'
+          
+          - task: AzureCLI@2
             displayName: 'Terraform Apply'
             inputs:
-              targetType: 'inline'
-              workingDirectory: '$(terraformWorkingDirectory)'
-              script: |
+              azureSubscription: 'bestrong-azure-connection'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Load environment variables from .env file
                 set -a
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Get authorization data from .env file
-                export ARM_CLIENT_ID=$TF_VAR_client_id
-                export ARM_CLIENT_SECRET=$TF_VAR_client_secret
-                export ARM_TENANT_ID=$TF_VAR_tenant_id
-                export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
-                
-                cp $(System.ArtifactsDirectory)/tfplan $(terraformWorkingDirectory)
-                terraform apply -auto-approve tfplan 
+                # Apply Terraform changes
+                terraform apply -auto-approve tfplan
+              workingDirectory: '$(workingDirectory)' 
