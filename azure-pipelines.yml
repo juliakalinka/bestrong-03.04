@@ -42,7 +42,6 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                # Download and install Terraform
                 wget -q https://releases.hashicorp.com/terraform/$(terraformVersion)/terraform_$(terraformVersion)_linux_amd64.zip
                 unzip -q terraform_$(terraformVersion)_linux_amd64.zip
                 sudo mv terraform /usr/local/bin/
@@ -54,6 +53,16 @@ stages:
             inputs:
               secureFile: 'terraform.env'
           
+          - task: Bash@3
+            displayName: 'Convert Environment File to Unix Format'
+            inputs:
+              targetType: 'inline'
+              script: |
+                tr -d '\r' < "$(envFile.secureFilePath)" > unix_env_file.tmp
+                cp unix_env_file.tmp "$(envFile.secureFilePath)"
+                rm unix_env_file.tmp
+                echo "Environment file converted to Unix format"
+          
           - task: AzureCLI@2
             displayName: 'Terraform Init'
             inputs:
@@ -61,12 +70,13 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                # Load environment variables from .env file
                 set -a
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Initialize Terraform with backend configuration
+                export TF_VAR_subscription_id=$(echo "$TF_VAR_subscription_id" | tr -d '\r')
+                echo "Using subscription ID: $TF_VAR_subscription_id"
+                
                 terraform init \
                   -backend-config="storage_account_name=$(TF_STATE_SA)" \
                   -backend-config="container_name=$(TF_STATE_CONTAINER)" \
@@ -80,12 +90,13 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                # Load environment variables from .env file
                 set -a
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Validate Terraform configuration
+                export TF_VAR_subscription_id=$(echo "$TF_VAR_subscription_id" | tr -d '\r')
+                echo "Using subscription ID: $TF_VAR_subscription_id"
+                
                 terraform validate
               workingDirectory: '$(workingDirectory)'
           
@@ -96,12 +107,13 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                # Load environment variables from .env file
                 set -a
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Run Terraform plan
+                export TF_VAR_subscription_id=$(echo "$TF_VAR_subscription_id" | tr -d '\r')
+                echo "Using subscription ID: $TF_VAR_subscription_id"
+                
                 terraform plan -out=tfplan
               workingDirectory: '$(workingDirectory)'
   
@@ -120,7 +132,6 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                # Download and install Terraform
                 wget -q https://releases.hashicorp.com/terraform/$(terraformVersion)/terraform_$(terraformVersion)_linux_amd64.zip
                 unzip -q terraform_$(terraformVersion)_linux_amd64.zip
                 sudo mv terraform /usr/local/bin/
@@ -132,6 +143,16 @@ stages:
             inputs:
               secureFile: 'terraform.env'
           
+          - task: Bash@3
+            displayName: 'Convert Environment File to Unix Format'
+            inputs:
+              targetType: 'inline'
+              script: |
+                tr -d '\r' < "$(envFile.secureFilePath)" > unix_env_file.tmp
+                cp unix_env_file.tmp "$(envFile.secureFilePath)"
+                rm unix_env_file.tmp
+                echo "Environment file converted to Unix format"
+          
           - task: AzureCLI@2
             displayName: 'Terraform Init'
             inputs:
@@ -139,12 +160,13 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                # Load environment variables from .env file
                 set -a
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Initialize Terraform with backend configuration
+                export TF_VAR_subscription_id=$(echo "$TF_VAR_subscription_id" | tr -d '\r')
+                echo "Using subscription ID: $TF_VAR_subscription_id"
+                
                 terraform init \
                   -backend-config="storage_account_name=$(TF_STATE_SA)" \
                   -backend-config="container_name=$(TF_STATE_CONTAINER)" \
@@ -158,12 +180,13 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                # Load environment variables from .env file
                 set -a
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Validate Terraform configuration
+                export TF_VAR_subscription_id=$(echo "$TF_VAR_subscription_id" | tr -d '\r')
+                echo "Using subscription ID: $TF_VAR_subscription_id"
+                
                 terraform validate
               workingDirectory: '$(workingDirectory)'
           
@@ -174,12 +197,13 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                # Load environment variables from .env file
                 set -a
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Run Terraform plan
+                export TF_VAR_subscription_id=$(echo "$TF_VAR_subscription_id" | tr -d '\r')
+                echo "Using subscription ID: $TF_VAR_subscription_id"
+                
                 terraform plan -out=tfplan
               workingDirectory: '$(workingDirectory)'
           
@@ -190,11 +214,12 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                # Load environment variables from .env file
                 set -a
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Apply Terraform changes
+                export TF_VAR_subscription_id=$(echo "$TF_VAR_subscription_id" | tr -d '\r')
+                echo "Using subscription ID: $TF_VAR_subscription_id"
+                
                 terraform apply -auto-approve tfplan
               workingDirectory: '$(workingDirectory)' 
