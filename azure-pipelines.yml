@@ -226,4 +226,4 @@ stages:
                 echo "Using subscription ID: $TF_VAR_subscription_id"
                 
                 terraform apply -auto-approve tfplan
-              workingDirectory: '$(workingDirectory)' 
+              workingDirectory: '$(workingDirectory)'
