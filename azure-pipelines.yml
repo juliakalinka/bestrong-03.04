@@ -18,6 +18,9 @@ variables:
     value: '1.5.7'
   - name: workingDirectory
     value: '$(System.DefaultWorkingDirectory)'
+  - name: terraformWorkingDirectory
+    value: '$(System.DefaultWorkingDirectory)'
+  - group: terraform-variables
 
 stages:
   - stage: Validate
@@ -56,16 +59,25 @@ stages:
                 source $(envFile.secureFilePath)
                 set +a
                 
+                # Беремо авторизаційні дані з .env файлу
                 export ARM_CLIENT_ID=$TF_VAR_client_id
                 export ARM_CLIENT_SECRET=$TF_VAR_client_secret
                 export ARM_TENANT_ID=$TF_VAR_tenant_id
                 export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
-                export TF_LOG=DEBUG
                 
+                # Перевірка наявності необхідних змінних
                 if [ -z "$ARM_CLIENT_ID" ] || [ -z "$ARM_CLIENT_SECRET" ] || [ -z "$ARM_TENANT_ID" ] || [ -z "$ARM_SUBSCRIPTION_ID" ]; then
-                  echo "Error: Missing required environment variables"
+                  echo "Error: Missing required environment variables in .env file"
                   exit 1
                 fi
+                
+                # Перевірка наявності необхідних змінних у Azure DevOps
+                if [ -z "$(TF_STATE_SA)" ] || [ -z "$(TF_STATE_CONTAINER)" ] || [ -z "$(TF_STATE_RG)" ]; then
+                  echo "Error: Missing required Azure DevOps variables (TF_STATE_SA, TF_STATE_CONTAINER, TF_STATE_RG)"
+                  exit 1
+                fi
+                
+                export TF_LOG=DEBUG
           
           - task: AzureCLI@2
             displayName: 'Terraform Init'
@@ -88,153 +100,119 @@ stages:
               workingDirectory: '$(workingDirectory)'
 
   - stage: Plan
-    displayName: 'Plan Terraform Changes'
-    condition: eq(variables['Build.Reason'], 'PullRequest')
+    displayName: 'Terraform Plan'
+    dependsOn: Validate
+    condition: succeeded()
     jobs:
-      - job: Plan
-        displayName: 'Run Terraform Plan'
+      - job: PlanTerraform
+        displayName: 'Create Terraform Plan'
         steps:
-          - checkout: self
-          
           - task: DownloadSecureFile@1
             name: envFile
+            displayName: 'Download env file'
             inputs:
               secureFile: 'terraform.env'
           
-          - task: AzureCLI@2
-            displayName: 'Install Terraform'
+          - task: Bash@3
+            displayName: 'Terraform Init'
             inputs:
-              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                wget https://releases.hashicorp.com/terraform/$(TF_VERSION)/terraform_$(TF_VERSION)_linux_amd64.zip
-                unzip terraform_$(TF_VERSION)_linux_amd64.zip
-                sudo mv terraform /usr/local/bin/
-                terraform version
-          
-          - task: AzureCLI@2
-            displayName: 'Setup Environment Variables'
-            inputs:
-              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
+              targetType: 'inline'
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
                 set -a
                 source $(envFile.secureFilePath)
                 set +a
+                
+                # Беремо авторизаційні дані з .env файлу
                 export ARM_CLIENT_ID=$TF_VAR_client_id
                 export ARM_CLIENT_SECRET=$TF_VAR_client_secret
                 export ARM_TENANT_ID=$TF_VAR_tenant_id
                 export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
-                export TF_LOG=DEBUG
-          
-          - task: AzureCLI@2
-            displayName: 'Terraform Init'
-            inputs:
-              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                terraform init
-              workingDirectory: '$(workingDirectory)'
-          
-          - task: AzureCLI@2
-            displayName: 'Diagnostic: Check Terraform Variables'
-            inputs:
-              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                # Create a temporary .tf file to print variables
-                cat > debug_vars.tf << 'EOL'
-                output "tags_value" {
-                  value = var.tags
-                  description = "Value of tags variable"
-                }
-                EOL
                 
-                # Run terraform refresh to see the value
-                terraform refresh -var="client_id=$TF_VAR_client_id" \
-                  -var="client_secret=$TF_VAR_client_secret" \
-                  -var="tenant_id=$TF_VAR_tenant_id" \
-                  -var="subscription_id=$TF_VAR_subscription_id" \
-                  -var="sql_admin_username=$TF_VAR_sql_admin_username" \
-                  -var="sql_admin_password=$TF_VAR_sql_admin_password"
-                
-                # Remove the debug file
-                rm debug_vars.tf
-              workingDirectory: '$(workingDirectory)'
+                terraform init -backend-config="storage_account_name=$(TF_STATE_SA)" -backend-config="container_name=$(TF_STATE_CONTAINER)" -backend-config="resource_group_name=$(TF_STATE_RG)"
           
-          - task: AzureCLI@2
+          - task: Bash@3
             displayName: 'Terraform Plan'
             inputs:
-              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                # First, try a simplified plan command
-                terraform plan -out=tfplan
-              workingDirectory: '$(workingDirectory)'
-
-  - stage: Apply
-    displayName: 'Apply Terraform Changes'
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-    jobs:
-      - job: Apply
-        displayName: 'Run Terraform Apply'
-        steps:
-          - checkout: self
-          
-          - task: DownloadSecureFile@1
-            name: envFile
-            inputs:
-              secureFile: 'terraform.env'
-          
-          - task: AzureCLI@2
-            displayName: 'Install Terraform'
-            inputs:
-              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                wget https://releases.hashicorp.com/terraform/$(TF_VERSION)/terraform_$(TF_VERSION)_linux_amd64.zip
-                unzip terraform_$(TF_VERSION)_linux_amd64.zip
-                sudo mv terraform /usr/local/bin/
-                terraform version
-          
-          - task: AzureCLI@2
-            displayName: 'Setup Environment Variables'
-            inputs:
-              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
+              targetType: 'inline'
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
                 set -a
                 source $(envFile.secureFilePath)
                 set +a
+                
+                # Беремо авторизаційні дані з .env файлу
                 export ARM_CLIENT_ID=$TF_VAR_client_id
                 export ARM_CLIENT_SECRET=$TF_VAR_client_secret
                 export ARM_TENANT_ID=$TF_VAR_tenant_id
                 export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
-                export TF_LOG=DEBUG
-          
-          - task: AzureCLI@2
-            displayName: 'Terraform Init'
+                
+                terraform plan -out=tfplan
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Terraform Plan'
             inputs:
-              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                terraform init
-              workingDirectory: '$(workingDirectory)'
-          
-          - task: AzureCLI@2
-            displayName: 'Terraform Apply'
-            inputs:
-              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                terraform apply -auto-approve
-              workingDirectory: '$(workingDirectory)' 
+              targetPath: '$(terraformWorkingDirectory)/tfplan'
+              artifact: 'tfplan'
+              publishLocation: 'pipeline'
+
+  - stage: Apply
+    displayName: 'Terraform Apply'
+    dependsOn: Plan
+    condition: succeeded()
+    jobs:
+      - deployment: ApplyTerraform
+        displayName: 'Apply Terraform Changes'
+        environment: 'Production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: DownloadPipelineArtifact@2
+                  displayName: 'Download Terraform Plan'
+                  inputs:
+                    artifactName: 'tfplan'
+                    downloadPath: '$(System.ArtifactsDirectory)'
+                
+                - task: DownloadSecureFile@1
+                  name: envFile
+                  displayName: 'Download env file'
+                  inputs:
+                    secureFile: 'terraform.env'
+                
+                - task: Bash@3
+                  displayName: 'Terraform Init'
+                  inputs:
+                    targetType: 'inline'
+                    workingDirectory: '$(terraformWorkingDirectory)'
+                    script: |
+                      set -a
+                      source $(envFile.secureFilePath)
+                      set +a
+                      
+                      # Беремо авторизаційні дані з .env файлу
+                      export ARM_CLIENT_ID=$TF_VAR_client_id
+                      export ARM_CLIENT_SECRET=$TF_VAR_client_secret
+                      export ARM_TENANT_ID=$TF_VAR_tenant_id
+                      export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
+                      
+                      terraform init -backend-config="storage_account_name=$(TF_STATE_SA)" -backend-config="container_name=$(TF_STATE_CONTAINER)" -backend-config="resource_group_name=$(TF_STATE_RG)"
+                
+                - task: Bash@3
+                  displayName: 'Terraform Apply'
+                  inputs:
+                    targetType: 'inline'
+                    workingDirectory: '$(terraformWorkingDirectory)'
+                    script: |
+                      set -a
+                      source $(envFile.secureFilePath)
+                      set +a
+                      
+                      # Беремо авторизаційні дані з .env файлу
+                      export ARM_CLIENT_ID=$TF_VAR_client_id
+                      export ARM_CLIENT_SECRET=$TF_VAR_client_secret
+                      export ARM_TENANT_ID=$TF_VAR_tenant_id
+                      export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
+                      
+                      cp $(System.ArtifactsDirectory)/tfplan $(terraformWorkingDirectory)
+                      terraform apply -auto-approve tfplan 
