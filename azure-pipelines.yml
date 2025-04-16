@@ -204,5 +204,5 @@ stages:
                 export TF_VAR_subscription_id=$(echo "$TF_VAR_subscription_id" | tr -d '\r')
                 echo "Using subscription ID: $TF_VAR_subscription_id"
                 
-                terraform apply -auto-approve tfplan
+                terraform apply -auto-approve
               workingDirectory: '$(workingDirectory)' 
