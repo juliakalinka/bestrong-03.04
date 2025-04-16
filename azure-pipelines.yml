@@ -140,20 +140,41 @@ stages:
               workingDirectory: '$(workingDirectory)'
           
           - task: AzureCLI@2
+            displayName: 'Diagnostic: Check Terraform Variables'
+            inputs:
+              azureSubscription: '$(ARM_SERVICE_CONNECTION)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Create a temporary .tf file to print variables
+                cat > debug_vars.tf << 'EOL'
+                output "tags_value" {
+                  value = var.tags
+                  description = "Value of tags variable"
+                }
+                EOL
+                
+                # Run terraform refresh to see the value
+                terraform refresh -var="client_id=$TF_VAR_client_id" \
+                  -var="client_secret=$TF_VAR_client_secret" \
+                  -var="tenant_id=$TF_VAR_tenant_id" \
+                  -var="subscription_id=$TF_VAR_subscription_id" \
+                  -var="sql_admin_username=$TF_VAR_sql_admin_username" \
+                  -var="sql_admin_password=$TF_VAR_sql_admin_password"
+                
+                # Remove the debug file
+                rm debug_vars.tf
+              workingDirectory: '$(workingDirectory)'
+          
+          - task: AzureCLI@2
             displayName: 'Terraform Plan'
             inputs:
               azureSubscription: '$(ARM_SERVICE_CONNECTION)'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                terraform plan \
-                  -var="client_id=$TF_VAR_client_id" \
-                  -var="client_secret=$TF_VAR_client_secret" \
-                  -var="tenant_id=$TF_VAR_tenant_id" \
-                  -var="subscription_id=$TF_VAR_subscription_id" \
-                  -var="sql_admin_username=$TF_VAR_sql_admin_username" \
-                  -var="sql_admin_password=$TF_VAR_sql_admin_password" \
-                  -out=tfplan
+                # First, try a simplified plan command
+                terraform plan -out=tfplan
               workingDirectory: '$(workingDirectory)'
 
   - stage: Apply
@@ -215,11 +236,5 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                terraform apply -auto-approve \
-                  -var="client_id=$TF_VAR_client_id" \
-                  -var="client_secret=$TF_VAR_client_secret" \
-                  -var="tenant_id=$TF_VAR_tenant_id" \
-                  -var="subscription_id=$TF_VAR_subscription_id" \
-                  -var="sql_admin_username=$TF_VAR_sql_admin_username" \
-                  -var="sql_admin_password=$TF_VAR_sql_admin_password"
+                terraform apply -auto-approve
               workingDirectory: '$(workingDirectory)' 
