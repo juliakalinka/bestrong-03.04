@@ -59,19 +59,19 @@ stages:
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Беремо авторизаційні дані з .env файлу
+                # Get authorization data from .env file
                 export ARM_CLIENT_ID=$TF_VAR_client_id
                 export ARM_CLIENT_SECRET=$TF_VAR_client_secret
                 export ARM_TENANT_ID=$TF_VAR_tenant_id
                 export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
                 
-                # Перевірка наявності необхідних змінних
+                # Check for required variables
                 if [ -z "$ARM_CLIENT_ID" ] || [ -z "$ARM_CLIENT_SECRET" ] || [ -z "$ARM_TENANT_ID" ] || [ -z "$ARM_SUBSCRIPTION_ID" ]; then
                   echo "Error: Missing required environment variables in .env file"
                   exit 1
                 fi
                 
-                # Перевірка наявності необхідних змінних у Azure DevOps
+                # Check for required variables in Azure DevOps
                 if [ -z "$(TF_STATE_SA)" ] || [ -z "$(TF_STATE_CONTAINER)" ] || [ -z "$(TF_STATE_RG)" ]; then
                   echo "Error: Missing required Azure DevOps variables (TF_STATE_SA, TF_STATE_CONTAINER, TF_STATE_RG)"
                   exit 1
@@ -86,7 +86,7 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                terraform init
+                terraform init -backend-config="storage_account_name=$(TF_STATE_SA)" -backend-config="container_name=$(TF_STATE_CONTAINER)" -backend-config="resource_group_name=$(TF_STATE_RG)"
               workingDirectory: '$(workingDirectory)'
           
           - task: AzureCLI@2
@@ -123,7 +123,7 @@ stages:
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Беремо авторизаційні дані з .env файлу
+                # Get authorization data from .env file
                 export ARM_CLIENT_ID=$TF_VAR_client_id
                 export ARM_CLIENT_SECRET=$TF_VAR_client_secret
                 export ARM_TENANT_ID=$TF_VAR_tenant_id
@@ -141,7 +141,7 @@ stages:
                 source $(envFile.secureFilePath)
                 set +a
                 
-                # Беремо авторизаційні дані з .env файлу
+                # Get authorization data from .env file
                 export ARM_CLIENT_ID=$TF_VAR_client_id
                 export ARM_CLIENT_SECRET=$TF_VAR_client_secret
                 export ARM_TENANT_ID=$TF_VAR_tenant_id
@@ -161,58 +161,54 @@ stages:
     dependsOn: Plan
     condition: succeeded()
     jobs:
-      - deployment: ApplyTerraform
+      - job: ApplyTerraform
         displayName: 'Apply Terraform Changes'
-        environment: 'Production'
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - task: DownloadPipelineArtifact@2
-                  displayName: 'Download Terraform Plan'
-                  inputs:
-                    artifactName: 'tfplan'
-                    downloadPath: '$(System.ArtifactsDirectory)'
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Terraform Plan'
+            inputs:
+              artifactName: 'tfplan'
+              downloadPath: '$(System.ArtifactsDirectory)'
+          
+          - task: DownloadSecureFile@1
+            name: envFile
+            displayName: 'Download env file'
+            inputs:
+              secureFile: 'terraform.env'
+          
+          - task: Bash@3
+            displayName: 'Terraform Init'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                set -a
+                source $(envFile.secureFilePath)
+                set +a
                 
-                - task: DownloadSecureFile@1
-                  name: envFile
-                  displayName: 'Download env file'
-                  inputs:
-                    secureFile: 'terraform.env'
+                # Get authorization data from .env file
+                export ARM_CLIENT_ID=$TF_VAR_client_id
+                export ARM_CLIENT_SECRET=$TF_VAR_client_secret
+                export ARM_TENANT_ID=$TF_VAR_tenant_id
+                export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
                 
-                - task: Bash@3
-                  displayName: 'Terraform Init'
-                  inputs:
-                    targetType: 'inline'
-                    workingDirectory: '$(terraformWorkingDirectory)'
-                    script: |
-                      set -a
-                      source $(envFile.secureFilePath)
-                      set +a
-                      
-                      # Беремо авторизаційні дані з .env файлу
-                      export ARM_CLIENT_ID=$TF_VAR_client_id
-                      export ARM_CLIENT_SECRET=$TF_VAR_client_secret
-                      export ARM_TENANT_ID=$TF_VAR_tenant_id
-                      export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
-                      
-                      terraform init -backend-config="storage_account_name=$(TF_STATE_SA)" -backend-config="container_name=$(TF_STATE_CONTAINER)" -backend-config="resource_group_name=$(TF_STATE_RG)"
+                terraform init -backend-config="storage_account_name=$(TF_STATE_SA)" -backend-config="container_name=$(TF_STATE_CONTAINER)" -backend-config="resource_group_name=$(TF_STATE_RG)"
+          
+          - task: Bash@3
+            displayName: 'Terraform Apply'
+            inputs:
+              targetType: 'inline'
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                set -a
+                source $(envFile.secureFilePath)
+                set +a
                 
-                - task: Bash@3
-                  displayName: 'Terraform Apply'
-                  inputs:
-                    targetType: 'inline'
-                    workingDirectory: '$(terraformWorkingDirectory)'
-                    script: |
-                      set -a
-                      source $(envFile.secureFilePath)
-                      set +a
-                      
-                      # Беремо авторизаційні дані з .env файлу
-                      export ARM_CLIENT_ID=$TF_VAR_client_id
-                      export ARM_CLIENT_SECRET=$TF_VAR_client_secret
-                      export ARM_TENANT_ID=$TF_VAR_tenant_id
-                      export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
-                      
-                      cp $(System.ArtifactsDirectory)/tfplan $(terraformWorkingDirectory)
-                      terraform apply -auto-approve tfplan 
+                # Get authorization data from .env file
+                export ARM_CLIENT_ID=$TF_VAR_client_id
+                export ARM_CLIENT_SECRET=$TF_VAR_client_secret
+                export ARM_TENANT_ID=$TF_VAR_tenant_id
+                export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
+                
+                cp $(System.ArtifactsDirectory)/tfplan $(terraformWorkingDirectory)
+                terraform apply -auto-approve tfplan 
