@@ -120,7 +120,7 @@ stages:
       - job: TriggerMainPipeline
         displayName: 'Trigger Main Pipeline on Merge'
         dependsOn: ValidateTerraform
-        condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main'))
+        condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranchName'], 'main'))
         steps:
           - task: PowerShell@2
             displayName: 'Wait for PR to be merged'
@@ -170,7 +170,7 @@ stages:
   # Main Branch Stage - runs on main branch for CI/CD
   - stage: CI_CD
     displayName: 'CI/CD Pipeline'
-    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), and(eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main'))))
+    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), and(eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranchName'], 'main'))))
     jobs:
       - job: DeployTerraform
         displayName: 'Deploy Infrastructure'
