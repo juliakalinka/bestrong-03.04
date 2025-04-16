@@ -27,6 +27,7 @@ variables:
   - group: terraform-variables
 
 stages:
+  # PR Stage - runs on Pull Requests
   - stage: PR_Validation
     displayName: 'PR Validation'
     condition: eq(variables['Build.Reason'], 'PullRequest')
@@ -116,6 +117,7 @@ stages:
                 terraform plan -out=tfplan
               workingDirectory: '$(workingDirectory)'
   
+  # Main Branch Stage - runs on main branch for CI/CD
   - stage: CI_CD
     displayName: 'CI/CD Pipeline'
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
@@ -220,4 +222,4 @@ stages:
                 echo "Using subscription ID: $TF_VAR_subscription_id"
                 
                 terraform apply -auto-approve tfplan
-              workingDirectory: '$(workingDirectory)'
+              workingDirectory: '$(workingDirectory)' 
