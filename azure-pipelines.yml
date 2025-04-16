@@ -191,23 +191,6 @@ stages:
               workingDirectory: '$(workingDirectory)'
           
           - task: AzureCLI@2
-            displayName: 'Terraform Plan'
-            inputs:
-              azureSubscription: 'bestrong-azure-connection'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                set -a
-                source $(envFile.secureFilePath)
-                set +a
-                
-                export TF_VAR_subscription_id=$(echo "$TF_VAR_subscription_id" | tr -d '\r')
-                echo "Using subscription ID: $TF_VAR_subscription_id"
-                
-                terraform plan -out=tfplan
-              workingDirectory: '$(workingDirectory)'
-          
-          - task: AzureCLI@2
             displayName: 'Terraform Apply'
             inputs:
               azureSubscription: 'bestrong-azure-connection'
